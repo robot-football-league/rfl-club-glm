@@ -1,52 +1,178 @@
-"""Sample United — the RFL reference team.
+"""GLM FC — behaviour layer. Founded Founding Night by GLM-5.3 for Zhipu.
 
-The engine calls build_team(ctx) once on match day. Return two player
-objects and (optionally) a manager. Each player needs:
+Each player runs the league's LLM football agent (fast tier) for its read
+of the game, wrapped in a deterministic tactical shell that enforces the
+one structural rule of 2v2 football: exactly one robot presses the ball,
+the other covers the line between ball and own goal. The shell also
+validates every reply, so a malformed or missing model answer degrades to
+sound positional football rather than an error.
 
-    begin_episode(log_dir=None)     # called once at kickoff
-    decide(obs) -> reply            # called every ~2 s of match time
-
-obs gives you camera detections in METRES (ball / teammates / opponents
-with bearing + distance + field position), your own localization, the
-score and clock, your teammate's last shout and the last one you
-overheard from the opposition. You reply with a skill and, optionally,
-one short sentence shouted out loud — your teammate hears it, and so do
-both opponents:
-
-    {"skill": "go_to_ball"}
-    {"skill": "kick_toward", "target": [x, y], "say": "crossing to you"}
-    {"skill": "walk_to",     "target": [x, y]}
-    {"skill": "turn_to",     "target": [x, y]}
-    {"skill": "hold"}
-
-The full schema lives in the engine repo: docs/RFL_RULES.md.
-
-This sample wires LLM brains through the engine's helper factory, which
-handles prompting, reply parsing, and per-decision latency budgets. Your
-team may instead implement decide() entirely yourself — hand-written
-logic, your own model calls, anything. The schema is the only contract.
-
-ctx = {"engine_version": str,
-       "team_index": 0 or 1,
-       "config": <your team.yaml, parsed>}
+Imports: stdlib math and gauntlet.football only.
 """
+
+import math
+
+X_LIMIT = 6.5          # pitch is 14 x 9 m; stay off the walls
+Y_LIMIT = 4.0
+COVER_OFFSET_M = 2.0   # cover stands this far goal-side of the ball
+SWITCH_MARGIN_M = 1.5  # hysteresis: presser changes only if clearly beaten
+BALL_MEMORY_S = 3.0    # trust the world model's ball memory this long
+KICK_RANGE_M = 1.2     # inside this, strike at goal rather than dribble
+
+
+def _clamp(pt):
+    return [max(-X_LIMIT, min(X_LIMIT, pt[0])),
+            max(-Y_LIMIT, min(Y_LIMIT, pt[1]))]
+
+
+def _dist(a, b):
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+class GLMPlayer:
+    """An LLM brain inside a positional shell."""
+
+    def __init__(self, agent, shirt, shared):
+        self.agent = agent
+        self.shirt = shirt
+        self.shared = shared          # role state shared with the teammate
+        self.last_ball = None         # [x, y] last credible ball position
+
+    # -- engine contract ------------------------------------------------
+
+    def begin_episode(self, log_dir=None):
+        self.shared["presser"] = None
+        self.last_ball = None
+        try:
+            self.agent.begin_episode(log_dir)
+        except Exception:
+            pass
+
+    def decide(self, obs):
+        reply = {}
+        try:
+            r = self.agent.decide(obs)
+            if isinstance(r, dict):
+                reply = r
+        except Exception:
+            reply = {}
+
+        self_state = obs.get("self") or {}
+        if self_state.get("fallen"):
+            return {"skill": "hold"}
+
+        you = obs.get("you") or {}
+        own_goal = you.get("defend_goal_xy") or [0.0, 0.0]
+        atk_goal = you.get("attack_goal_xy") or [0.0, 0.0]
+        me = self_state.get("field_xy") or [0.0, 0.0]
+
+        ball = self._ball(obs)
+        mate = self._teammate(obs)
+        presser, took_over = self._assign(ball, me, mate)
+
+        say = reply.get("say")
+        if ball is not None and presser == self.shirt:
+            out = self._valid(reply)
+            if out is None:
+                if _dist(me, ball) <= KICK_RANGE_M:
+                    out = {"skill": "kick_toward", "target": _clamp(atk_goal)}
+                else:
+                    out = {"skill": "go_to_ball"}
+            if took_over and not say:
+                say = "Mine!"
+        else:
+            # Covering (or the ball is lost): hold the ball-goal line.
+            if ball is not None:
+                gx = own_goal[0] - ball[0]
+                gy = own_goal[1] - ball[1]
+                n = math.hypot(gx, gy) or 1.0
+                target = _clamp([ball[0] + gx / n * COVER_OFFSET_M,
+                                 ball[1] + gy / n * COVER_OFFSET_M])
+            else:
+                target = _clamp([(own_goal[0] + me[0]) / 2.0,
+                                 (own_goal[1] + me[1]) / 2.0])
+            out = {"skill": "walk_to", "target": target}
+        if say:
+            out["say"] = str(say)[:120]
+        return out
+
+    # -- internals ------------------------------------------------------
+
+    def _ball(self, obs):
+        ball = (obs.get("detections") or {}).get("ball")
+        if isinstance(ball, dict):
+            xy = ball.get("field_xy")
+            if xy and ball.get("age_s", 0.0) <= BALL_MEMORY_S:
+                self.last_ball = [float(xy[0]), float(xy[1])]
+        return self.last_ball
+
+    def _teammate(self, obs):
+        for t in (obs.get("detections") or {}).get("teammates") or []:
+            if isinstance(t, dict) and t.get("field_xy"):
+                xy = t["field_xy"]
+                return [float(xy[0]), float(xy[1])]
+        return None
+
+    def _assign(self, ball, me, mate):
+        """One presser, with hysteresis; shared with the teammate."""
+        shirts = self.shared.get("shirts") or {self.shirt}
+        other = None
+        for s in shirts:
+            if s != self.shirt:
+                other = s
+        prev = self.shared.get("presser")
+        if prev not in shirts:
+            prev = None
+        if ball is None or (prev is not None and mate is None):
+            # Lost the ball or lost sight of the mate: keep the current role.
+            presser = prev if prev is not None else self.shirt
+            self.shared["presser"] = presser
+            return presser, False
+        my_d = _dist(me, ball)
+        mate_d = _dist(mate, ball) if mate else 99.0
+        if prev is None:
+            presser = self.shirt if my_d <= mate_d else other
+        elif prev == self.shirt:
+            presser = other if mate_d + SWITCH_MARGIN_M < my_d else self.shirt
+        else:
+            presser = self.shirt if my_d + SWITCH_MARGIN_M < mate_d else other
+        if presser is None:
+            presser = self.shirt
+        self.shared["presser"] = presser
+        return presser, (presser == self.shirt and prev != self.shirt)
+
+    @staticmethod
+    def _valid(reply):
+        """Pass through only well-formed skill replies."""
+        skill = reply.get("skill")
+        if skill in ("go_to_ball", "hold"):
+            return {"skill": skill}
+        if skill in ("kick_toward", "walk_to", "turn_to"):
+            t = reply.get("target")
+            if isinstance(t, (list, tuple)) and len(t) == 2:
+                try:
+                    x, y = float(t[0]), float(t[1])
+                except (TypeError, ValueError):
+                    return None
+                return {"skill": skill, "target": _clamp([x, y])}
+        return None
 
 
 def build_team(ctx):
-    from gauntlet.football import make_football_agent, make_football_manager
+    from gauntlet.football import make_football_agent
     cfg = ctx["config"]
     base = ctx["team_index"] * 2
-    # Each player may run different software: a per-player "model" in the
-    # players: list overrides the team default, and nothing stops you from
-    # returning two completely different hand-written objects instead.
     roster = cfg.get("players") or [{}, {}]
-    players = [make_football_agent(
-                   roster[k].get("model", cfg["player_model"]),
-                   base + k, seed=base + k,
-                   prompt=roster[k].get("prompt", cfg.get("prompt", "football_v2")))
-               for k in range(2)]
-    manager = None
-    if cfg.get("manager_model"):
-        manager = make_football_manager(cfg["manager_model"],
-                                        seed=100 + ctx["team_index"])
-    return {"players": players, "manager": manager}
+    model = cfg.get("player_model") or "llm:mock:ok"
+    shared = {"presser": None, "shirts": set()}
+    players = []
+    for k in range(2):
+        agent = make_football_agent(
+            roster[k].get("model", model),
+            base + k,
+            seed=base + k,
+            prompt=roster[k].get("prompt", cfg.get("prompt", "football_v2")),
+        )
+        players.append(GLMPlayer(agent, base + k, shared))
+    shared["shirts"] = {p.shirt for p in players}
+    return {"players": players, "manager": None}
