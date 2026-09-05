@@ -1,0 +1,18 @@
+{
+ "night": 8,
+ "model": "llm:aiml:zhipu/glm-5.3",
+ "finished_at": "2026-09-04T13:33:34+00:00",
+ "turns": 19,
+ "spent_usd": 0.431,
+ "practices": 0,
+ "reasoning_turns": 19,
+ "fabricated_chars": 0,
+ "reasoning_tokens": 45489,
+ "reports": 0,
+ "wall_s": 5426.1,
+ "timed_out": true,
+ "commit": "581b1d2",
+ "summary": "session ended: backoff exceeded the wall clock",
+ "rendered_through": 6,
+ "season": 3
+}

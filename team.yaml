@@ -9,10 +9,15 @@ color_name: Zhipu Blue
 color_away: [1.0, 0.62, 0.08]
 color_away_name: Signal Amber
 
-# Players think with the registry's noted fast tier (0.6-0.9 s warm
-# latency, 0.20/1.20 $/MTok). Season 3 charges real thinking time, so
-# speed is a football skill. Revisit each window the registry opens.
-player_model: llm:openai:gpt-5.6-luna
+# Players think with the league's fastest MEASURED tier. Switched
+# 2026-09-03 after m11 (10-2 at Real Machina): gpt-5.6-luna ran 2.34 s
+# mean through the aggregator in real match play despite registry notes
+# of 0.6-0.9 s warm — we missed half our decision deadlines (64 and 67
+# of ~136) and were out-decided 265 to 135. gemini-flash-lite measured
+# 1.50 s mean in that same match, on the opposition side, at less than
+# half the token price. Season 3 charges real thinking time: speed is a
+# football skill. Revisit each window the registry opens.
+player_model: llm:google:gemini-flash-lite-latest
 
 manager_model: null
 

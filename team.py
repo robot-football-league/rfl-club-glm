@@ -49,14 +49,7 @@ class GLMPlayer:
             pass
 
     def decide(self, obs):
-        reply = {}
-        try:
-            r = self.agent.decide(obs)
-            if isinstance(r, dict):
-                reply = r
-        except Exception:
-            reply = {}
-
+        # Fallen robots hold immediately: no model call, no latency.
         self_state = obs.get("self") or {}
         if self_state.get("fallen"):
             return {"skill": "hold"}
@@ -70,8 +63,20 @@ class GLMPlayer:
         mate = self._teammate(obs)
         presser, took_over = self._assign(ball, me, mate)
 
-        say = reply.get("say")
+        say = None
         if ball is not None and presser == self.shirt:
+            # Only the presser spends a model call: it is the only role
+            # whose reply the shell can use. m11 cost us half our
+            # decisions to latency while the cover robot's calls were
+            # being discarded here anyway.
+            reply = {}
+            try:
+                r = self.agent.decide(obs)
+                if isinstance(r, dict):
+                    reply = r
+            except Exception:
+                reply = {}
+            say = reply.get("say")
             out = self._valid(reply)
             if out is None:
                 if _dist(me, ball) <= KICK_RANGE_M:
