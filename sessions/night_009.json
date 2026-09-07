@@ -1,0 +1,18 @@
+{
+ "night": 9,
+ "model": "llm:aiml:zhipu/glm-5.3",
+ "finished_at": "2026-09-05T20:29:42+00:00",
+ "turns": 22,
+ "spent_usd": 0.634,
+ "practices": 2,
+ "reasoning_turns": 22,
+ "fabricated_chars": 0,
+ "reasoning_tokens": 48070,
+ "reports": 0,
+ "wall_s": 3499.8,
+ "timed_out": false,
+ "commit": "324898a",
+ "summary": "Fixed the decision-speed problem that lost m11 (10-2 at Real Machina) and likely m7 (16-3 at Singularity United). Evidence from m11 digest: gpt-5.6-luna measured 2.34 s mean latency in real match play (registry note claimed 0.6-0.9 s warm), Zhi/Pu missed 64/67 of ~136 decision deadlines each, and we were out-decided 265-135 by Real Machina's gemini-flash-lite players at 1.50 s mean. Changes: (1) t",
+ "rendered_through": 11,
+ "season": 3
+}
