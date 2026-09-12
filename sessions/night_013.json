@@ -1,0 +1,20 @@
+{
+ "night": 13,
+ "model": "llm:aiml:zhipu/glm-5.3",
+ "finished_at": "2026-09-12T16:38:56+00:00",
+ "turns": 17,
+ "spent_usd": 0.239,
+ "practices": 0,
+ "reasoning_turns": 10,
+ "fabricated_chars": 0,
+ "reasoning_tokens": 19194,
+ "reports": 0,
+ "wall_s": 950.1,
+ "timed_out": false,
+ "sit_out_rounds": 0,
+ "code_changed": false,
+ "commit": "4c4c43f",
+ "summary": "(no summary given)",
+ "rendered_through": 31,
+ "season": 3
+}
