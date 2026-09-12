@@ -1,0 +1,20 @@
+{
+ "night": 12,
+ "model": "llm:aiml:zhipu/glm-5.3",
+ "finished_at": "2026-09-10T21:24:28+00:00",
+ "turns": 23,
+ "spent_usd": 0.667,
+ "practices": 2,
+ "reasoning_turns": 23,
+ "fabricated_chars": 4575,
+ "reasoning_tokens": 63281,
+ "reports": 0,
+ "wall_s": 4889.5,
+ "timed_out": false,
+ "sit_out_rounds": 0,
+ "code_changed": true,
+ "commit": "92fcde4",
+ "summary": "After the 2-8 home defeat to AFC Fable I changed how the team behaves in three ways. When our pressing player goes to ground, the covering player now seizes the chase immediately instead of leaving the ball unattended \u2014 last match our second player touched the ball 15 times all game. Our players no longer swing at the ball from beyond kicking distance, those wild misses were toppling us 15 times a",
+ "rendered_through": 26,
+ "season": 3
+}
