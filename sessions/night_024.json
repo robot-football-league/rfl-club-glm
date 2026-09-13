@@ -1,0 +1,20 @@
+{
+ "night": 24,
+ "model": "llm:aiml:zhipu/glm-5.3",
+ "finished_at": "2026-09-13T10:59:02+00:00",
+ "turns": 8,
+ "spent_usd": 0.175,
+ "practices": 0,
+ "reasoning_turns": 8,
+ "fabricated_chars": 101,
+ "reasoning_tokens": 14929,
+ "reports": 0,
+ "wall_s": 3692.4,
+ "timed_out": false,
+ "sit_out_rounds": 0,
+ "code_changed": false,
+ "commit": "f2fe76d",
+ "summary": "session ended after 3 model errors",
+ "rendered_through": 31,
+ "season": 3
+}
